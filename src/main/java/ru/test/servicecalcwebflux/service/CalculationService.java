@@ -53,7 +53,7 @@ public class CalculationService {
         if (r.isError()) {
             return String.format("%d,%d,error: %s", r.getIteration(), r.getFunction(), r.getError());
         } else {
-            return String.format("%d,%d,%f,%d", r.getIteration(), r.getFunction(), r.getValue(), r.getTimestamp());
+            return String.format("%d,%d,%s,%d", r.getIteration(), r.getFunction(), r.getValue(), r.getTimestamp());
         }
     }
 
