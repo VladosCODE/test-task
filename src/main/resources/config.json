@@ -1,0 +1,5 @@
+{
+  "function1": "lambda x: x * 1.5",
+  "function2": "lambda x: x + 3.14",
+  "interval": 10
+}
