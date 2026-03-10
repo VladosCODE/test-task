@@ -4,59 +4,50 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 import ru.test.servicecalcwebflux.model.Result;
 
-import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class OrderedMerger {
-    private final Queue<Result> queue1 = new ConcurrentLinkedQueue<>();
-    private final Queue<Result> queue2 = new ConcurrentLinkedQueue<>();
+    private final ConcurrentMap<Integer, Result> map1 = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Integer, Result> map2 = new ConcurrentHashMap<>();
     private final Sinks.Many<String> outputSink = Sinks.many().unicast().onBackpressureBuffer();
-    private final AtomicBoolean completed1 = new AtomicBoolean(false);
-    private final AtomicBoolean completed2 = new AtomicBoolean(false);
+    private final AtomicInteger completedCount = new AtomicInteger(0);
+
+    public OrderedMerger() {
+    }
 
     public void merge(Flux<Result> flux1, Flux<Result> flux2) {
         flux1.subscribe(
-                this::addResult1,
-                error -> {},
-                () -> {
-                    completed1.set(true);
-                    checkComplete();
-                }
+                this::processResult1,
+                this::handleError,
+                this::complete
         );
         flux2.subscribe(
-                this::addResult2,
-                error -> {},
-                () -> {
-                    completed2.set(true);
-                    checkComplete();
-                }
+                this::processResult2,
+                this::handleError,
+                this::complete
         );
     }
 
-    private synchronized void addResult1(Result r) {
-        queue1.offer(r);
-        tryEmit();
+    private void processResult1(Result r) {
+        map1.put(r.getIteration(), r);
+        tryEmit(r.getIteration());
     }
 
-    private synchronized void addResult2(Result r) {
-        queue2.offer(r);
-        tryEmit();
+    private void processResult2(Result r) {
+        map2.put(r.getIteration(), r);
+        tryEmit(r.getIteration());
     }
 
-    private void tryEmit() {
-        while (true) {
-            Result r1 = queue1.peek();
-            Result r2 = queue2.peek();
-            if (r1 == null || r2 == null) break;
-            if (r1.getIteration() == r2.getIteration()) {
-                queue1.poll();
-                queue2.poll();
-                String line = formatOrdered(r1, r2, queue1.size(), queue2.size());
-                outputSink.tryEmitNext(line);
-            } else {
-                break; // ждём недостающий результат
-            }
+    private void tryEmit(int iteration) {
+        Result r1 = map1.get(iteration);
+        Result r2 = map2.get(iteration);
+        if (r1 != null && r2 != null) {
+            map1.remove(iteration);
+            map2.remove(iteration);
+            String line = formatOrdered(r1, r2, map1.size(), map2.size());
+            outputSink.tryEmitNext(line);
         }
     }
 
@@ -71,8 +62,13 @@ public class OrderedMerger {
                 buf2);
     }
 
-    private void checkComplete() {
-        if (completed1.get() && completed2.get()) {
+    private void handleError(Throwable error) {
+        outputSink.tryEmitError(error);
+    }
+
+    private void complete() {
+        if (completedCount.incrementAndGet() == 2) {
+            // Оба потока завершены, можно закрыть sink
             outputSink.tryEmitComplete();
         }
     }
