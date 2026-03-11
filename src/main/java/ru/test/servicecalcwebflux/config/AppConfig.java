@@ -1,17 +1,23 @@
 package ru.test.servicecalcwebflux.config;
 
-import lombok.Getter;
-import lombok.Setter;
-import org.springframework.stereotype.Component;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.core.io.ClassPathResource;
+import tools.jackson.databind.ObjectMapper;
 
-/**
- * Bean для хранения функций(скриптов) и кол-ва итераций
- */
-@Component
-@Getter
-@Setter
+import java.io.IOException;
+
+@Configuration
 public class AppConfig {
-    private String function1; //Функция 1
-    private String function2; //Функция 2
-    private int interval; //Интервал между итерациями
+
+    @Bean
+    public ObjectMapper objectMapper(){
+        return new ObjectMapper();
+    }
+
+    @Bean
+    public ConfigFile configFile() throws IOException {
+        ClassPathResource resource = new ClassPathResource("config.json");
+        return objectMapper().readValue(resource.getInputStream(), ConfigFile.class);
+    }
 }

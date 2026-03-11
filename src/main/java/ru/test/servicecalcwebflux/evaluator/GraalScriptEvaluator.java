@@ -5,6 +5,7 @@ import org.graalvm.polyglot.Value;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
+import ru.test.servicecalcwebflux.dto.ResultDto;
 
 @Component
 public class GraalScriptEvaluator implements ScriptEvaluator {
@@ -12,9 +13,10 @@ public class GraalScriptEvaluator implements ScriptEvaluator {
     private String language;
 
     @Override
-    public Mono<Double> evaluate(String script, int argument) {
+    public Mono<ResultDto> evaluate(String script, int argument) {
         return Mono.fromCallable(() -> {
             try (Context context = Context.create(language)) {
+                long start = System.currentTimeMillis();
                 // Делаем переменную x доступной внутри скрипта
                 context.getBindings(language).putMember("x", argument);
 
@@ -30,8 +32,9 @@ public class GraalScriptEvaluator implements ScriptEvaluator {
                     result = result.execute(argument);
                 }
 
+                long time = System.currentTimeMillis() - start;
                 // Возвращаем число
-                return result.asDouble();
+                return new ResultDto(result.asDouble(),time);
             }
             catch (Exception e) {
                 // Пробрасываем исключение, чтобы onErrorResume его обработал

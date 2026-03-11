@@ -1,23 +1,23 @@
 package ru.test.servicecalcwebflux.service;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import ru.test.servicecalcwebflux.config.AppConfig;
+import ru.test.servicecalcwebflux.config.ConfigFile;
+import ru.test.servicecalcwebflux.dto.ResultDto;
 import ru.test.servicecalcwebflux.evaluator.ScriptEvaluator;
 import ru.test.servicecalcwebflux.model.Result;
+import ru.test.servicecalcwebflux.util.Formatter;
 
 import java.time.Duration;
 
 @Service
+@RequiredArgsConstructor
 public class CalculationService {
-    private final AppConfig config;
+    private final ConfigFile config;
     private final ScriptEvaluator evaluator;
-
-    public CalculationService(AppConfig config, ScriptEvaluator evaluator) {
-        this.config = config;
-        this.evaluator = evaluator;
-    }
+    private final Formatter formatter;
 
     /**
      * Метод, который вычисляет функции js/python итерационно и передает в поток клиенту
@@ -39,35 +39,27 @@ public class CalculationService {
 
     private Flux<String> processIterationUnordered(long iteration) {
         Mono<Result> r1 = evaluate(iteration, 1)
-                .map(v -> Result.success((int) iteration, 1, v, System.currentTimeMillis()))
-                .onErrorResume(e -> Mono.just(Result.error((int) iteration, 1, e.getMessage(), System.currentTimeMillis())));
+                .map(res -> Result.success((int) iteration, 1, res.getValue(), res.getTimeCalc()))
+                .onErrorResume(e -> Mono.just(Result.error((int) iteration, 1, e.getMessage())));
 
         Mono<Result> r2 = evaluate(iteration, 2)
-                .map(v -> Result.success((int) iteration, 2, v, System.currentTimeMillis()))
-                .onErrorResume(e -> Mono.just(Result.error((int) iteration, 2, e.getMessage(), System.currentTimeMillis())));
+                .map(r -> Result.success((int) iteration, 2, r.getValue(),r.getTimeCalc()))
+                .onErrorResume(e -> Mono.just(Result.error((int) iteration, 2, e.getMessage())));
 
-        return Flux.merge(r1, r2).map(this::formatUnordered);
-    }
-
-    private String formatUnordered(Result r) {
-        if (r.isError()) {
-            return String.format("%d,%d,error: %s", r.getIteration(), r.getFunction(), r.getError());
-        } else {
-            return String.format("%d,%d,%s,%d", r.getIteration(), r.getFunction(), r.getValue(), r.getTimestamp());
-        }
+        return Flux.merge(r1, r2).map(formatter::formatUnordered);
     }
 
     private Flux<String> processOrdered(Flux<Long> ticks) {
-        OrderedMerger merger = new OrderedMerger();
+        OrderedMerger merger = new OrderedMerger(formatter);
 
         Flux<Result> allResults = ticks.flatMap(iteration ->
                 Flux.merge(
                         evaluate(iteration, 1)
-                                .map(v -> Result.success(iteration.intValue(), 1, v, System.currentTimeMillis()))
-                                .onErrorResume(e -> Mono.just(Result.error(iteration.intValue(), 1, e.getMessage(), System.currentTimeMillis()))),
+                                .map(res -> Result.success(iteration.intValue(), 1, res.getValue(), res.getTimeCalc()))
+                                .onErrorResume(e -> Mono.just(Result.error(iteration.intValue(), 1, e.getMessage()))),
                         evaluate(iteration, 2)
-                                .map(v -> Result.success(iteration.intValue(), 2, v, System.currentTimeMillis()))
-                                .onErrorResume(e -> Mono.just(Result.error(iteration.intValue(), 2, e.getMessage(), System.currentTimeMillis())))
+                                .map(res -> Result.success(iteration.intValue(), 2, res.getValue(), res.getTimeCalc()))
+                                .onErrorResume(e -> Mono.just(Result.error(iteration.intValue(), 2, e.getMessage())))
                 )
         );
 
@@ -78,7 +70,7 @@ public class CalculationService {
         return merger.getOutputFlux();
     }
 
-    private Mono<Double> evaluate(long iteration, int function) {
+    private Mono<ResultDto> evaluate(long iteration, int function) {
         String script = function == 1 ? config.getFunction1() : config.getFunction2();
         return evaluator.evaluate(script, (int) iteration);
     }

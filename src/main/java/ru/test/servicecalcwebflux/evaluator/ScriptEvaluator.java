@@ -1,6 +1,7 @@
 package ru.test.servicecalcwebflux.evaluator;
 
 import reactor.core.publisher.Mono;
+import ru.test.servicecalcwebflux.dto.ResultDto;
 
 public interface ScriptEvaluator {
     /**
@@ -9,5 +10,5 @@ public interface ScriptEvaluator {
      * @param argument аргумент
      * @return значение пользовательской функции
      */
-    Mono<Double> evaluate(String script, int argument);
+    Mono<ResultDto> evaluate(String script, int argument);
 }

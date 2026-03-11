@@ -3,6 +3,7 @@ package ru.test.servicecalcwebflux.service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 import ru.test.servicecalcwebflux.model.Result;
+import ru.test.servicecalcwebflux.util.Formatter;
 
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -13,8 +14,10 @@ public class OrderedMerger {
     private final ConcurrentMap<Integer, Result> map2 = new ConcurrentHashMap<>();
     private final Sinks.Many<String> outputSink = Sinks.many().unicast().onBackpressureBuffer();
     private final AtomicInteger completedCount = new AtomicInteger(0);
+    private final Formatter formatter;
 
-    public OrderedMerger() {
+    public OrderedMerger(Formatter formatter) {
+        this.formatter = formatter;
     }
 
     public void merge(Flux<Result> flux1, Flux<Result> flux2) {
@@ -46,12 +49,12 @@ public class OrderedMerger {
         if (r1 != null && r2 != null) {
             map1.remove(iteration);
             map2.remove(iteration);
-            String line = formatOrdered(r1, r2, map1.size(), map2.size());
+            String line = formatter.formatOrdered(r1, r2, map1.size(), map2.size());
             outputSink.tryEmitNext(line);
         }
     }
 
-    private String formatOrdered(Result r1, Result r2, int buf1, int buf2) {
+    /*private String formatOrdered(Result r1, Result r2, int buf1, int buf2) {
         return String.format("%d,%s,%d,%d,%s,%d,%d",
                 r1.getIteration(),
                 r1.isError() ? "error: " + r1.getError() : String.valueOf(r1.getValue()),
@@ -60,7 +63,7 @@ public class OrderedMerger {
                 r2.isError() ? "error: " + r2.getError() : String.valueOf(r2.getValue()),
                 r2.getTimestamp(),
                 buf2);
-    }
+    }*/
 
     private void handleError(Throwable error) {
         outputSink.tryEmitError(error);
