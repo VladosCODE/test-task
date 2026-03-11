@@ -54,17 +54,6 @@ public class OrderedMerger {
         }
     }
 
-    /*private String formatOrdered(Result r1, Result r2, int buf1, int buf2) {
-        return String.format("%d,%s,%d,%d,%s,%d,%d",
-                r1.getIteration(),
-                r1.isError() ? "error: " + r1.getError() : String.valueOf(r1.getValue()),
-                r1.getTimestamp(),
-                buf1,
-                r2.isError() ? "error: " + r2.getError() : String.valueOf(r2.getValue()),
-                r2.getTimestamp(),
-                buf2);
-    }*/
-
     private void handleError(Throwable error) {
         outputSink.tryEmitError(error);
     }
